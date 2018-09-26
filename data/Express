@@ -1,0 +1,826 @@
+Express
+StrongLoop / IBM에 의해 제공이 번역.
+
+이 문서는 영문판 문서에 비해 더 오래된 버전일 수도 있습니다. 최신 업데이트를 확인하려면 영문판 문서를 참조하십시오.
+✖
+Express 앱에서 사용하기 위한 미들웨어 작성
+개요
+미들웨어 함수는 요청 오브젝트(req), 응답 오브젝트 (res), 그리고 애플리케이션의 요청-응답 주기 중 그 다음의 미들웨어 함수 대한 액세스 권한을 갖는 함수입니다. 그 다음의 미들웨어 함수는 일반적으로 next라는 이름의 변수로 표시됩니다.
+
+미들웨어 함수는 다음과 같은 태스크를 수행할 수 있습니다.
+
+모든 코드를 실행.
+요청 및 응답 오브젝트에 대한 변경을 실행.
+요청-응답 주기를 종료.
+스택 내의 그 다음 미들웨어를 호출.
+현재의 미들웨어 함수가 요청-응답 주기를 종료하지 않는 경우에는 next()를 호출하여 그 다음 미들웨어 함수에 제어를 전달해야 합니다. 그렇지 않으면 해당 요청은 정지된 채로 방치됩니다.
+
+다음 예시에 미들웨어 함수 호출의 요소가 표시되어 있습니다.
+
+	
+미들웨어 함수가 적용되는 HTTP 메소드.
+미들웨어 함수가 적용되는 경로(라우트).
+미들웨어 함수.
+미들웨어 함수에 대한 콜백 인수(일반적으로 "next"라 불림).
+미들웨어 함수에 대한 HTTP 응답 인수(일반적으로 "res"라 불림).
+미들웨어 함수에 대한 HTTP 요청 인수(일반적으로 "req"라 불림).
+아래에는 간단한 “Hello World” Express 애플리케이션에 대한 예가 표시되어 있으며, 이 애플리케이션을 위해 두 개의 미들웨어 함수를 정의하게 됩니다.
+
+
+var express = require('express');
+var app = express();
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+개발
+아래에는 “myLogger”라는 이름의 미들웨어 함수에 대한 간단한 예가 표시되어 있습니다. 이 함수는 앱에 대한 요청이 해당 함수를 거쳐 전달될 때 단순히 “LOGGED”를 인쇄합니다. 이 미들웨어 함수는 myLogger라는 이름의 변수에 지정되어 있습니다.
+
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+위의 예에서 next()에 대한 호출에 주목하십시오. 이 함수를 호출하면 앱 내의 그 다음 미들웨어 함수가 호출됩니다. next() 함수는 Node.js 또는 Express API의 일부가 아니지만, 미들웨어 함수에 전달되는 세 번째 인수입니다. next() 함수에는 어떠한 이름을 지정해도 좋지만, 일반적으로 항상 “next”라는 이름을 갖습니다. 혼란을 방지하려면 항상 이러한 방식을 사용하십시오.
+
+미들웨어 함수를 로드하려면 미들웨어 함수를 지정하여 app.use()를 호출하십시오. 예를 들면, 다음의 코드는 루트 경로(/)로 라우팅하기 전에 myLogger 미들웨어 함수를 로드합니다.
+
+
+var express = require('express');
+var app = express();
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+app.use(myLogger);
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+앱이 요청을 수신할 때마다, 앱은 “LOGGED”라는 메시지를 터미널에 인쇄합니다.
+
+미들웨어의 로드 순서는 중요하며, 먼저 로드되는 미들웨어 함수가 먼저 실행됩니다.
+
+루트 경로에 대한 라우팅 이후에 myLogger가 로드되면, 루트 경로의 라우트 핸들러가 요청-응답 주기를 종료하므로 요청은 절대로 myLogger에 도달하지 못하며 앱은 “LOGGED”를 인쇄하지 않습니다.
+
+미들웨어 함수 myLogger는 단순히 메시지를 인쇄한 후 next() 함수를 호출하여 스택 내의 그 다음 미들웨어 함수에 요청을 전달합니다.
+
+다음 예에서는 requestTime라는 특성을 요청 오브젝트에 추가합니다. 이 미들웨어 함수는 “requestTime”이라고 명명하겠습니다.
+
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+이제 앱은 requestTime 미들웨어 함수를 사용합니다. 또한 루트 경로 라우트의 콜백 함수는 미들웨어 함수가 req(요청 오브젝트)에 추가하는 특성을 사용합니다.
+
+
+var express = require('express');
+var app = express();
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+app.use(requestTime);
+
+app.get('/', function (req, res) {
+  var responseText = 'Hello World!';
+  responseText += 'Requested at: ' + req.requestTime + '';
+  res.send(responseText);
+});
+
+app.listen(3000);
+
+앱의 루트에 대한 요청을 실행할 때, 앱은 이제 요청의 타임스탬프를 브라우저에 표시합니다.
+
+사용자는 요청 오브젝트, 응답 오브젝트, 스택 내의 그 다음 미들웨어 함수, 그리고 모든 Node.js API에 대한 액세스 권한을 가지고 있으므로, 미들웨어 함수에 대한 가능성은 끝이 없습니다.
+
+Express 미들웨어에 대한 자세한 정보는 Express 미들웨어 사용을 참조하십시오.
+
+
+
+Express는 Node.js 기반의 프로젝트입니다.
+GitHub에서 웹사이트의 포크를 작성하십시오
+.
+Copyright © StrongLoop, Inc., and other expressjs.com contributors.
+크리에이티브 커먼즈 라이선스 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 미국 라이선스에 따라 이용할 수 있습니다.
+Express
+StrongLoop / IBM에 의해 제공이 번역.
+
+이 문서는 영문판 문서에 비해 더 오래된 버전일 수도 있습니다. 최신 업데이트를 확인하려면 영문판 문서를 참조하십시오.
+✖
+Express 앱에서 사용하기 위한 미들웨어 작성
+개요
+미들웨어 함수는 요청 오브젝트(req), 응답 오브젝트 (res), 그리고 애플리케이션의 요청-응답 주기 중 그 다음의 미들웨어 함수 대한 액세스 권한을 갖는 함수입니다. 그 다음의 미들웨어 함수는 일반적으로 next라는 이름의 변수로 표시됩니다.
+
+미들웨어 함수는 다음과 같은 태스크를 수행할 수 있습니다.
+
+모든 코드를 실행.
+요청 및 응답 오브젝트에 대한 변경을 실행.
+요청-응답 주기를 종료.
+스택 내의 그 다음 미들웨어를 호출.
+현재의 미들웨어 함수가 요청-응답 주기를 종료하지 않는 경우에는 next()를 호출하여 그 다음 미들웨어 함수에 제어를 전달해야 합니다. 그렇지 않으면 해당 요청은 정지된 채로 방치됩니다.
+
+다음 예시에 미들웨어 함수 호출의 요소가 표시되어 있습니다.
+
+	
+미들웨어 함수가 적용되는 HTTP 메소드.
+미들웨어 함수가 적용되는 경로(라우트).
+미들웨어 함수.
+미들웨어 함수에 대한 콜백 인수(일반적으로 "next"라 불림).
+미들웨어 함수에 대한 HTTP 응답 인수(일반적으로 "res"라 불림).
+미들웨어 함수에 대한 HTTP 요청 인수(일반적으로 "req"라 불림).
+아래에는 간단한 “Hello World” Express 애플리케이션에 대한 예가 표시되어 있으며, 이 애플리케이션을 위해 두 개의 미들웨어 함수를 정의하게 됩니다.
+
+
+var express = require('express');
+var app = express();
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+개발
+아래에는 “myLogger”라는 이름의 미들웨어 함수에 대한 간단한 예가 표시되어 있습니다. 이 함수는 앱에 대한 요청이 해당 함수를 거쳐 전달될 때 단순히 “LOGGED”를 인쇄합니다. 이 미들웨어 함수는 myLogger라는 이름의 변수에 지정되어 있습니다.
+
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+위의 예에서 next()에 대한 호출에 주목하십시오. 이 함수를 호출하면 앱 내의 그 다음 미들웨어 함수가 호출됩니다. next() 함수는 Node.js 또는 Express API의 일부가 아니지만, 미들웨어 함수에 전달되는 세 번째 인수입니다. next() 함수에는 어떠한 이름을 지정해도 좋지만, 일반적으로 항상 “next”라는 이름을 갖습니다. 혼란을 방지하려면 항상 이러한 방식을 사용하십시오.
+
+미들웨어 함수를 로드하려면 미들웨어 함수를 지정하여 app.use()를 호출하십시오. 예를 들면, 다음의 코드는 루트 경로(/)로 라우팅하기 전에 myLogger 미들웨어 함수를 로드합니다.
+
+
+var express = require('express');
+var app = express();
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+app.use(myLogger);
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+앱이 요청을 수신할 때마다, 앱은 “LOGGED”라는 메시지를 터미널에 인쇄합니다.
+
+미들웨어의 로드 순서는 중요하며, 먼저 로드되는 미들웨어 함수가 먼저 실행됩니다.
+
+루트 경로에 대한 라우팅 이후에 myLogger가 로드되면, 루트 경로의 라우트 핸들러가 요청-응답 주기를 종료하므로 요청은 절대로 myLogger에 도달하지 못하며 앱은 “LOGGED”를 인쇄하지 않습니다.
+
+미들웨어 함수 myLogger는 단순히 메시지를 인쇄한 후 next() 함수를 호출하여 스택 내의 그 다음 미들웨어 함수에 요청을 전달합니다.
+
+다음 예에서는 requestTime라는 특성을 요청 오브젝트에 추가합니다. 이 미들웨어 함수는 “requestTime”이라고 명명하겠습니다.
+
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+이제 앱은 requestTime 미들웨어 함수를 사용합니다. 또한 루트 경로 라우트의 콜백 함수는 미들웨어 함수가 req(요청 오브젝트)에 추가하는 특성을 사용합니다.
+
+
+var express = require('express');
+var app = express();
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+app.use(requestTime);
+
+app.get('/', function (req, res) {
+  var responseText = 'Hello World!';
+  responseText += 'Requested at: ' + req.requestTime + '';
+  res.send(responseText);
+});
+
+app.listen(3000);
+
+앱의 루트에 대한 요청을 실행할 때, 앱은 이제 요청의 타임스탬프를 브라우저에 표시합니다.
+
+사용자는 요청 오브젝트, 응답 오브젝트, 스택 내의 그 다음 미들웨어 함수, 그리고 모든 Node.js API에 대한 액세스 권한을 가지고 있으므로, 미들웨어 함수에 대한 가능성은 끝이 없습니다.
+
+Express 미들웨어에 대한 자세한 정보는 Express 미들웨어 사용을 참조하십시오.
+
+
+
+Express는 Node.js 기반의 프로젝트입니다.
+GitHub에서 웹사이트의 포크를 작성하십시오
+.
+Copyright © StrongLoop, Inc., and other expressjs.com contributors.
+크리에이티브 커먼즈 라이선스 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 미국 라이선스에 따라 이용할 수 있습니다.
+Express
+StrongLoop / IBM에 의해 제공이 번역.
+
+이 문서는 영문판 문서에 비해 더 오래된 버전일 수도 있습니다. 최신 업데이트를 확인하려면 영문판 문서를 참조하십시오.
+✖
+Express 앱에서 사용하기 위한 미들웨어 작성
+개요
+미들웨어 함수는 요청 오브젝트(req), 응답 오브젝트 (res), 그리고 애플리케이션의 요청-응답 주기 중 그 다음의 미들웨어 함수 대한 액세스 권한을 갖는 함수입니다. 그 다음의 미들웨어 함수는 일반적으로 next라는 이름의 변수로 표시됩니다.
+
+미들웨어 함수는 다음과 같은 태스크를 수행할 수 있습니다.
+
+모든 코드를 실행.
+요청 및 응답 오브젝트에 대한 변경을 실행.
+요청-응답 주기를 종료.
+스택 내의 그 다음 미들웨어를 호출.
+현재의 미들웨어 함수가 요청-응답 주기를 종료하지 않는 경우에는 next()를 호출하여 그 다음 미들웨어 함수에 제어를 전달해야 합니다. 그렇지 않으면 해당 요청은 정지된 채로 방치됩니다.
+
+다음 예시에 미들웨어 함수 호출의 요소가 표시되어 있습니다.
+
+	
+미들웨어 함수가 적용되는 HTTP 메소드.
+미들웨어 함수가 적용되는 경로(라우트).
+미들웨어 함수.
+미들웨어 함수에 대한 콜백 인수(일반적으로 "next"라 불림).
+미들웨어 함수에 대한 HTTP 응답 인수(일반적으로 "res"라 불림).
+미들웨어 함수에 대한 HTTP 요청 인수(일반적으로 "req"라 불림).
+아래에는 간단한 “Hello World” Express 애플리케이션에 대한 예가 표시되어 있으며, 이 애플리케이션을 위해 두 개의 미들웨어 함수를 정의하게 됩니다.
+
+
+var express = require('express');
+var app = express();
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+개발
+아래에는 “myLogger”라는 이름의 미들웨어 함수에 대한 간단한 예가 표시되어 있습니다. 이 함수는 앱에 대한 요청이 해당 함수를 거쳐 전달될 때 단순히 “LOGGED”를 인쇄합니다. 이 미들웨어 함수는 myLogger라는 이름의 변수에 지정되어 있습니다.
+
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+위의 예에서 next()에 대한 호출에 주목하십시오. 이 함수를 호출하면 앱 내의 그 다음 미들웨어 함수가 호출됩니다. next() 함수는 Node.js 또는 Express API의 일부가 아니지만, 미들웨어 함수에 전달되는 세 번째 인수입니다. next() 함수에는 어떠한 이름을 지정해도 좋지만, 일반적으로 항상 “next”라는 이름을 갖습니다. 혼란을 방지하려면 항상 이러한 방식을 사용하십시오.
+
+미들웨어 함수를 로드하려면 미들웨어 함수를 지정하여 app.use()를 호출하십시오. 예를 들면, 다음의 코드는 루트 경로(/)로 라우팅하기 전에 myLogger 미들웨어 함수를 로드합니다.
+
+
+var express = require('express');
+var app = express();
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+app.use(myLogger);
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+앱이 요청을 수신할 때마다, 앱은 “LOGGED”라는 메시지를 터미널에 인쇄합니다.
+
+미들웨어의 로드 순서는 중요하며, 먼저 로드되는 미들웨어 함수가 먼저 실행됩니다.
+
+루트 경로에 대한 라우팅 이후에 myLogger가 로드되면, 루트 경로의 라우트 핸들러가 요청-응답 주기를 종료하므로 요청은 절대로 myLogger에 도달하지 못하며 앱은 “LOGGED”를 인쇄하지 않습니다.
+
+미들웨어 함수 myLogger는 단순히 메시지를 인쇄한 후 next() 함수를 호출하여 스택 내의 그 다음 미들웨어 함수에 요청을 전달합니다.
+
+다음 예에서는 requestTime라는 특성을 요청 오브젝트에 추가합니다. 이 미들웨어 함수는 “requestTime”이라고 명명하겠습니다.
+
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+이제 앱은 requestTime 미들웨어 함수를 사용합니다. 또한 루트 경로 라우트의 콜백 함수는 미들웨어 함수가 req(요청 오브젝트)에 추가하는 특성을 사용합니다.
+
+
+var express = require('express');
+var app = express();
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+app.use(requestTime);
+
+app.get('/', function (req, res) {
+  var responseText = 'Hello World!';
+  responseText += 'Requested at: ' + req.requestTime + '';
+  res.send(responseText);
+});
+
+app.listen(3000);
+
+앱의 루트에 대한 요청을 실행할 때, 앱은 이제 요청의 타임스탬프를 브라우저에 표시합니다.
+
+사용자는 요청 오브젝트, 응답 오브젝트, 스택 내의 그 다음 미들웨어 함수, 그리고 모든 Node.js API에 대한 액세스 권한을 가지고 있으므로, 미들웨어 함수에 대한 가능성은 끝이 없습니다.
+
+Express 미들웨어에 대한 자세한 정보는 Express 미들웨어 사용을 참조하십시오.
+
+
+
+Express는 Node.js 기반의 프로젝트입니다.
+GitHub에서 웹사이트의 포크를 작성하십시오
+.
+Copyright © StrongLoop, Inc., and other expressjs.com contributors.
+크리에이티브 커먼즈 라이선스 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 미국 라이선스에 따라 이용할 수 있습니다.
+Express
+StrongLoop / IBM에 의해 제공이 번역.
+
+이 문서는 영문판 문서에 비해 더 오래된 버전일 수도 있습니다. 최신 업데이트를 확인하려면 영문판 문서를 참조하십시오.
+✖
+Express 앱에서 사용하기 위한 미들웨어 작성
+개요
+미들웨어 함수는 요청 오브젝트(req), 응답 오브젝트 (res), 그리고 애플리케이션의 요청-응답 주기 중 그 다음의 미들웨어 함수 대한 액세스 권한을 갖는 함수입니다. 그 다음의 미들웨어 함수는 일반적으로 next라는 이름의 변수로 표시됩니다.
+
+미들웨어 함수는 다음과 같은 태스크를 수행할 수 있습니다.
+
+모든 코드를 실행.
+요청 및 응답 오브젝트에 대한 변경을 실행.
+요청-응답 주기를 종료.
+스택 내의 그 다음 미들웨어를 호출.
+현재의 미들웨어 함수가 요청-응답 주기를 종료하지 않는 경우에는 next()를 호출하여 그 다음 미들웨어 함수에 제어를 전달해야 합니다. 그렇지 않으면 해당 요청은 정지된 채로 방치됩니다.
+
+다음 예시에 미들웨어 함수 호출의 요소가 표시되어 있습니다.
+
+	
+미들웨어 함수가 적용되는 HTTP 메소드.
+미들웨어 함수가 적용되는 경로(라우트).
+미들웨어 함수.
+미들웨어 함수에 대한 콜백 인수(일반적으로 "next"라 불림).
+미들웨어 함수에 대한 HTTP 응답 인수(일반적으로 "res"라 불림).
+미들웨어 함수에 대한 HTTP 요청 인수(일반적으로 "req"라 불림).
+아래에는 간단한 “Hello World” Express 애플리케이션에 대한 예가 표시되어 있으며, 이 애플리케이션을 위해 두 개의 미들웨어 함수를 정의하게 됩니다.
+
+
+var express = require('express');
+var app = express();
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+개발
+아래에는 “myLogger”라는 이름의 미들웨어 함수에 대한 간단한 예가 표시되어 있습니다. 이 함수는 앱에 대한 요청이 해당 함수를 거쳐 전달될 때 단순히 “LOGGED”를 인쇄합니다. 이 미들웨어 함수는 myLogger라는 이름의 변수에 지정되어 있습니다.
+
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+위의 예에서 next()에 대한 호출에 주목하십시오. 이 함수를 호출하면 앱 내의 그 다음 미들웨어 함수가 호출됩니다. next() 함수는 Node.js 또는 Express API의 일부가 아니지만, 미들웨어 함수에 전달되는 세 번째 인수입니다. next() 함수에는 어떠한 이름을 지정해도 좋지만, 일반적으로 항상 “next”라는 이름을 갖습니다. 혼란을 방지하려면 항상 이러한 방식을 사용하십시오.
+
+미들웨어 함수를 로드하려면 미들웨어 함수를 지정하여 app.use()를 호출하십시오. 예를 들면, 다음의 코드는 루트 경로(/)로 라우팅하기 전에 myLogger 미들웨어 함수를 로드합니다.
+
+
+var express = require('express');
+var app = express();
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+app.use(myLogger);
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+앱이 요청을 수신할 때마다, 앱은 “LOGGED”라는 메시지를 터미널에 인쇄합니다.
+
+미들웨어의 로드 순서는 중요하며, 먼저 로드되는 미들웨어 함수가 먼저 실행됩니다.
+
+루트 경로에 대한 라우팅 이후에 myLogger가 로드되면, 루트 경로의 라우트 핸들러가 요청-응답 주기를 종료하므로 요청은 절대로 myLogger에 도달하지 못하며 앱은 “LOGGED”를 인쇄하지 않습니다.
+
+미들웨어 함수 myLogger는 단순히 메시지를 인쇄한 후 next() 함수를 호출하여 스택 내의 그 다음 미들웨어 함수에 요청을 전달합니다.
+
+다음 예에서는 requestTime라는 특성을 요청 오브젝트에 추가합니다. 이 미들웨어 함수는 “requestTime”이라고 명명하겠습니다.
+
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+이제 앱은 requestTime 미들웨어 함수를 사용합니다. 또한 루트 경로 라우트의 콜백 함수는 미들웨어 함수가 req(요청 오브젝트)에 추가하는 특성을 사용합니다.
+
+
+var express = require('express');
+var app = express();
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+app.use(requestTime);
+
+app.get('/', function (req, res) {
+  var responseText = 'Hello World!';
+  responseText += 'Requested at: ' + req.requestTime + '';
+  res.send(responseText);
+});
+
+app.listen(3000);
+
+앱의 루트에 대한 요청을 실행할 때, 앱은 이제 요청의 타임스탬프를 브라우저에 표시합니다.
+
+사용자는 요청 오브젝트, 응답 오브젝트, 스택 내의 그 다음 미들웨어 함수, 그리고 모든 Node.js API에 대한 액세스 권한을 가지고 있으므로, 미들웨어 함수에 대한 가능성은 끝이 없습니다.
+
+Express 미들웨어에 대한 자세한 정보는 Express 미들웨어 사용을 참조하십시오.
+
+
+
+Express는 Node.js 기반의 프로젝트입니다.
+GitHub에서 웹사이트의 포크를 작성하십시오
+.
+Copyright © StrongLoop, Inc., and other expressjs.com contributors.
+크리에이티브 커먼즈 라이선스 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 미국 라이선스에 따라 이용할 수 있습니다.
+Express
+StrongLoop / IBM에 의해 제공이 번역.
+
+이 문서는 영문판 문서에 비해 더 오래된 버전일 수도 있습니다. 최신 업데이트를 확인하려면 영문판 문서를 참조하십시오.
+✖
+Express 앱에서 사용하기 위한 미들웨어 작성
+개요
+미들웨어 함수는 요청 오브젝트(req), 응답 오브젝트 (res), 그리고 애플리케이션의 요청-응답 주기 중 그 다음의 미들웨어 함수 대한 액세스 권한을 갖는 함수입니다. 그 다음의 미들웨어 함수는 일반적으로 next라는 이름의 변수로 표시됩니다.
+
+미들웨어 함수는 다음과 같은 태스크를 수행할 수 있습니다.
+
+모든 코드를 실행.
+요청 및 응답 오브젝트에 대한 변경을 실행.
+요청-응답 주기를 종료.
+스택 내의 그 다음 미들웨어를 호출.
+현재의 미들웨어 함수가 요청-응답 주기를 종료하지 않는 경우에는 next()를 호출하여 그 다음 미들웨어 함수에 제어를 전달해야 합니다. 그렇지 않으면 해당 요청은 정지된 채로 방치됩니다.
+
+다음 예시에 미들웨어 함수 호출의 요소가 표시되어 있습니다.
+
+	
+미들웨어 함수가 적용되는 HTTP 메소드.
+미들웨어 함수가 적용되는 경로(라우트).
+미들웨어 함수.
+미들웨어 함수에 대한 콜백 인수(일반적으로 "next"라 불림).
+미들웨어 함수에 대한 HTTP 응답 인수(일반적으로 "res"라 불림).
+미들웨어 함수에 대한 HTTP 요청 인수(일반적으로 "req"라 불림).
+아래에는 간단한 “Hello World” Express 애플리케이션에 대한 예가 표시되어 있으며, 이 애플리케이션을 위해 두 개의 미들웨어 함수를 정의하게 됩니다.
+
+
+var express = require('express');
+var app = express();
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+개발
+아래에는 “myLogger”라는 이름의 미들웨어 함수에 대한 간단한 예가 표시되어 있습니다. 이 함수는 앱에 대한 요청이 해당 함수를 거쳐 전달될 때 단순히 “LOGGED”를 인쇄합니다. 이 미들웨어 함수는 myLogger라는 이름의 변수에 지정되어 있습니다.
+
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+위의 예에서 next()에 대한 호출에 주목하십시오. 이 함수를 호출하면 앱 내의 그 다음 미들웨어 함수가 호출됩니다. next() 함수는 Node.js 또는 Express API의 일부가 아니지만, 미들웨어 함수에 전달되는 세 번째 인수입니다. next() 함수에는 어떠한 이름을 지정해도 좋지만, 일반적으로 항상 “next”라는 이름을 갖습니다. 혼란을 방지하려면 항상 이러한 방식을 사용하십시오.
+
+미들웨어 함수를 로드하려면 미들웨어 함수를 지정하여 app.use()를 호출하십시오. 예를 들면, 다음의 코드는 루트 경로(/)로 라우팅하기 전에 myLogger 미들웨어 함수를 로드합니다.
+
+
+var express = require('express');
+var app = express();
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+app.use(myLogger);
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+앱이 요청을 수신할 때마다, 앱은 “LOGGED”라는 메시지를 터미널에 인쇄합니다.
+
+미들웨어의 로드 순서는 중요하며, 먼저 로드되는 미들웨어 함수가 먼저 실행됩니다.
+
+루트 경로에 대한 라우팅 이후에 myLogger가 로드되면, 루트 경로의 라우트 핸들러가 요청-응답 주기를 종료하므로 요청은 절대로 myLogger에 도달하지 못하며 앱은 “LOGGED”를 인쇄하지 않습니다.
+
+미들웨어 함수 myLogger는 단순히 메시지를 인쇄한 후 next() 함수를 호출하여 스택 내의 그 다음 미들웨어 함수에 요청을 전달합니다.
+
+다음 예에서는 requestTime라는 특성을 요청 오브젝트에 추가합니다. 이 미들웨어 함수는 “requestTime”이라고 명명하겠습니다.
+
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+이제 앱은 requestTime 미들웨어 함수를 사용합니다. 또한 루트 경로 라우트의 콜백 함수는 미들웨어 함수가 req(요청 오브젝트)에 추가하는 특성을 사용합니다.
+
+
+var express = require('express');
+var app = express();
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+app.use(requestTime);
+
+app.get('/', function (req, res) {
+  var responseText = 'Hello World!';
+  responseText += 'Requested at: ' + req.requestTime + '';
+  res.send(responseText);
+});
+
+app.listen(3000);
+
+앱의 루트에 대한 요청을 실행할 때, 앱은 이제 요청의 타임스탬프를 브라우저에 표시합니다.
+
+사용자는 요청 오브젝트, 응답 오브젝트, 스택 내의 그 다음 미들웨어 함수, 그리고 모든 Node.js API에 대한 액세스 권한을 가지고 있으므로, 미들웨어 함수에 대한 가능성은 끝이 없습니다.
+
+Express 미들웨어에 대한 자세한 정보는 Express 미들웨어 사용을 참조하십시오.
+
+
+
+Express는 Node.js 기반의 프로젝트입니다.
+GitHub에서 웹사이트의 포크를 작성하십시오
+.
+Copyright © StrongLoop, Inc., and other expressjs.com contributors.
+크리에이티브 커먼즈 라이선스 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 미국 라이선스에 따라 이용할 수 있습니다.
+Express
+StrongLoop / IBM에 의해 제공이 번역.
+
+이 문서는 영문판 문서에 비해 더 오래된 버전일 수도 있습니다. 최신 업데이트를 확인하려면 영문판 문서를 참조하십시오.
+✖
+Express 앱에서 사용하기 위한 미들웨어 작성
+개요
+미들웨어 함수는 요청 오브젝트(req), 응답 오브젝트 (res), 그리고 애플리케이션의 요청-응답 주기 중 그 다음의 미들웨어 함수 대한 액세스 권한을 갖는 함수입니다. 그 다음의 미들웨어 함수는 일반적으로 next라는 이름의 변수로 표시됩니다.
+
+미들웨어 함수는 다음과 같은 태스크를 수행할 수 있습니다.
+
+모든 코드를 실행.
+요청 및 응답 오브젝트에 대한 변경을 실행.
+요청-응답 주기를 종료.
+스택 내의 그 다음 미들웨어를 호출.
+현재의 미들웨어 함수가 요청-응답 주기를 종료하지 않는 경우에는 next()를 호출하여 그 다음 미들웨어 함수에 제어를 전달해야 합니다. 그렇지 않으면 해당 요청은 정지된 채로 방치됩니다.
+
+다음 예시에 미들웨어 함수 호출의 요소가 표시되어 있습니다.
+
+	
+미들웨어 함수가 적용되는 HTTP 메소드.
+미들웨어 함수가 적용되는 경로(라우트).
+미들웨어 함수.
+미들웨어 함수에 대한 콜백 인수(일반적으로 "next"라 불림).
+미들웨어 함수에 대한 HTTP 응답 인수(일반적으로 "res"라 불림).
+미들웨어 함수에 대한 HTTP 요청 인수(일반적으로 "req"라 불림).
+아래에는 간단한 “Hello World” Express 애플리케이션에 대한 예가 표시되어 있으며, 이 애플리케이션을 위해 두 개의 미들웨어 함수를 정의하게 됩니다.
+
+
+var express = require('express');
+var app = express();
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+개발
+아래에는 “myLogger”라는 이름의 미들웨어 함수에 대한 간단한 예가 표시되어 있습니다. 이 함수는 앱에 대한 요청이 해당 함수를 거쳐 전달될 때 단순히 “LOGGED”를 인쇄합니다. 이 미들웨어 함수는 myLogger라는 이름의 변수에 지정되어 있습니다.
+
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+위의 예에서 next()에 대한 호출에 주목하십시오. 이 함수를 호출하면 앱 내의 그 다음 미들웨어 함수가 호출됩니다. next() 함수는 Node.js 또는 Express API의 일부가 아니지만, 미들웨어 함수에 전달되는 세 번째 인수입니다. next() 함수에는 어떠한 이름을 지정해도 좋지만, 일반적으로 항상 “next”라는 이름을 갖습니다. 혼란을 방지하려면 항상 이러한 방식을 사용하십시오.
+
+미들웨어 함수를 로드하려면 미들웨어 함수를 지정하여 app.use()를 호출하십시오. 예를 들면, 다음의 코드는 루트 경로(/)로 라우팅하기 전에 myLogger 미들웨어 함수를 로드합니다.
+
+
+var express = require('express');
+var app = express();
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+app.use(myLogger);
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+앱이 요청을 수신할 때마다, 앱은 “LOGGED”라는 메시지를 터미널에 인쇄합니다.
+
+미들웨어의 로드 순서는 중요하며, 먼저 로드되는 미들웨어 함수가 먼저 실행됩니다.
+
+루트 경로에 대한 라우팅 이후에 myLogger가 로드되면, 루트 경로의 라우트 핸들러가 요청-응답 주기를 종료하므로 요청은 절대로 myLogger에 도달하지 못하며 앱은 “LOGGED”를 인쇄하지 않습니다.
+
+미들웨어 함수 myLogger는 단순히 메시지를 인쇄한 후 next() 함수를 호출하여 스택 내의 그 다음 미들웨어 함수에 요청을 전달합니다.
+
+다음 예에서는 requestTime라는 특성을 요청 오브젝트에 추가합니다. 이 미들웨어 함수는 “requestTime”이라고 명명하겠습니다.
+
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+이제 앱은 requestTime 미들웨어 함수를 사용합니다. 또한 루트 경로 라우트의 콜백 함수는 미들웨어 함수가 req(요청 오브젝트)에 추가하는 특성을 사용합니다.
+
+
+var express = require('express');
+var app = express();
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+app.use(requestTime);
+
+app.get('/', function (req, res) {
+  var responseText = 'Hello World!';
+  responseText += 'Requested at: ' + req.requestTime + '';
+  res.send(responseText);
+});
+
+app.listen(3000);
+
+앱의 루트에 대한 요청을 실행할 때, 앱은 이제 요청의 타임스탬프를 브라우저에 표시합니다.
+
+사용자는 요청 오브젝트, 응답 오브젝트, 스택 내의 그 다음 미들웨어 함수, 그리고 모든 Node.js API에 대한 액세스 권한을 가지고 있으므로, 미들웨어 함수에 대한 가능성은 끝이 없습니다.
+
+Express 미들웨어에 대한 자세한 정보는 Express 미들웨어 사용을 참조하십시오.
+
+
+
+Express는 Node.js 기반의 프로젝트입니다.
+GitHub에서 웹사이트의 포크를 작성하십시오
+.
+Copyright © StrongLoop, Inc., and other expressjs.com contributors.
+크리에이티브 커먼즈 라이선스 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 미국 라이선스에 따라 이용할 수 있습니다.
+Express
+StrongLoop / IBM에 의해 제공이 번역.
+
+이 문서는 영문판 문서에 비해 더 오래된 버전일 수도 있습니다. 최신 업데이트를 확인하려면 영문판 문서를 참조하십시오.
+✖
+Express 앱에서 사용하기 위한 미들웨어 작성
+개요
+미들웨어 함수는 요청 오브젝트(req), 응답 오브젝트 (res), 그리고 애플리케이션의 요청-응답 주기 중 그 다음의 미들웨어 함수 대한 액세스 권한을 갖는 함수입니다. 그 다음의 미들웨어 함수는 일반적으로 next라는 이름의 변수로 표시됩니다.
+
+미들웨어 함수는 다음과 같은 태스크를 수행할 수 있습니다.
+
+모든 코드를 실행.
+요청 및 응답 오브젝트에 대한 변경을 실행.
+요청-응답 주기를 종료.
+스택 내의 그 다음 미들웨어를 호출.
+현재의 미들웨어 함수가 요청-응답 주기를 종료하지 않는 경우에는 next()를 호출하여 그 다음 미들웨어 함수에 제어를 전달해야 합니다. 그렇지 않으면 해당 요청은 정지된 채로 방치됩니다.
+
+다음 예시에 미들웨어 함수 호출의 요소가 표시되어 있습니다.
+
+	
+미들웨어 함수가 적용되는 HTTP 메소드.
+미들웨어 함수가 적용되는 경로(라우트).
+미들웨어 함수.
+미들웨어 함수에 대한 콜백 인수(일반적으로 "next"라 불림).
+미들웨어 함수에 대한 HTTP 응답 인수(일반적으로 "res"라 불림).
+미들웨어 함수에 대한 HTTP 요청 인수(일반적으로 "req"라 불림).
+아래에는 간단한 “Hello World” Express 애플리케이션에 대한 예가 표시되어 있으며, 이 애플리케이션을 위해 두 개의 미들웨어 함수를 정의하게 됩니다.
+
+
+var express = require('express');
+var app = express();
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+개발
+아래에는 “myLogger”라는 이름의 미들웨어 함수에 대한 간단한 예가 표시되어 있습니다. 이 함수는 앱에 대한 요청이 해당 함수를 거쳐 전달될 때 단순히 “LOGGED”를 인쇄합니다. 이 미들웨어 함수는 myLogger라는 이름의 변수에 지정되어 있습니다.
+
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+위의 예에서 next()에 대한 호출에 주목하십시오. 이 함수를 호출하면 앱 내의 그 다음 미들웨어 함수가 호출됩니다. next() 함수는 Node.js 또는 Express API의 일부가 아니지만, 미들웨어 함수에 전달되는 세 번째 인수입니다. next() 함수에는 어떠한 이름을 지정해도 좋지만, 일반적으로 항상 “next”라는 이름을 갖습니다. 혼란을 방지하려면 항상 이러한 방식을 사용하십시오.
+
+미들웨어 함수를 로드하려면 미들웨어 함수를 지정하여 app.use()를 호출하십시오. 예를 들면, 다음의 코드는 루트 경로(/)로 라우팅하기 전에 myLogger 미들웨어 함수를 로드합니다.
+
+
+var express = require('express');
+var app = express();
+
+var myLogger = function (req, res, next) {
+  console.log('LOGGED');
+  next();
+};
+
+app.use(myLogger);
+
+app.get('/', function (req, res) {
+  res.send('Hello World!');
+});
+
+app.listen(3000);
+
+앱이 요청을 수신할 때마다, 앱은 “LOGGED”라는 메시지를 터미널에 인쇄합니다.
+
+미들웨어의 로드 순서는 중요하며, 먼저 로드되는 미들웨어 함수가 먼저 실행됩니다.
+
+루트 경로에 대한 라우팅 이후에 myLogger가 로드되면, 루트 경로의 라우트 핸들러가 요청-응답 주기를 종료하므로 요청은 절대로 myLogger에 도달하지 못하며 앱은 “LOGGED”를 인쇄하지 않습니다.
+
+미들웨어 함수 myLogger는 단순히 메시지를 인쇄한 후 next() 함수를 호출하여 스택 내의 그 다음 미들웨어 함수에 요청을 전달합니다.
+
+다음 예에서는 requestTime라는 특성을 요청 오브젝트에 추가합니다. 이 미들웨어 함수는 “requestTime”이라고 명명하겠습니다.
+
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+이제 앱은 requestTime 미들웨어 함수를 사용합니다. 또한 루트 경로 라우트의 콜백 함수는 미들웨어 함수가 req(요청 오브젝트)에 추가하는 특성을 사용합니다.
+
+
+var express = require('express');
+var app = express();
+
+var requestTime = function (req, res, next) {
+  req.requestTime = Date.now();
+  next();
+};
+
+app.use(requestTime);
+
+app.get('/', function (req, res) {
+  var responseText = 'Hello World!';
+  responseText += 'Requested at: ' + req.requestTime + '';
+  res.send(responseText);
+});
+
+app.listen(3000);
+
+앱의 루트에 대한 요청을 실행할 때, 앱은 이제 요청의 타임스탬프를 브라우저에 표시합니다.
+
+사용자는 요청 오브젝트, 응답 오브젝트, 스택 내의 그 다음 미들웨어 함수, 그리고 모든 Node.js API에 대한 액세스 권한을 가지고 있으므로, 미들웨어 함수에 대한 가능성은 끝이 없습니다.
+
+Express 미들웨어에 대한 자세한 정보는 Express 미들웨어 사용을 참조하십시오.
+
+
+
+Express는 Node.js 기반의 프로젝트입니다.
+GitHub에서 웹사이트의 포크를 작성하십시오
+.
+Copyright © StrongLoop, Inc., and other expressjs.com contributors.
+크리에이티브 커먼즈 라이선스 이 저작물은 크리에이티브 커먼즈 저작자표시-동일조건변경허락 3.0 미국 라이선스에 따라 이용할 수 있습니다.
